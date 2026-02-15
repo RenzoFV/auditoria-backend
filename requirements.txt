@@ -1,0 +1,22 @@
+# Framework Web
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+
+# Base de datos
+pyodbc==5.0.1
+sqlalchemy==2.0.25
+supabase==2.3.0
+
+# Inteligencia Artificial
+google-generativeai==0.3.2
+
+# Generación de reportes
+reportlab==4.0.9
+openpyxl==3.1.2
+
+# Configuración y validación
+pydantic-settings==2.1.0
+python-dotenv==1.0.0
+
+# Utilidades
+python-multipart==0.0.6
