@@ -109,6 +109,7 @@ IMPACT: [Impacto potencial en el sistema]
 RECOMMENDATION: [Recomendación específica de corrección]
 CODE_SNIPPET: [Fragmento de código problemático]
 EXPLOIT_EXAMPLE: [Ejemplo entendible, en texto claro, de cómo se podría explotar]
+NORMATIVE_REFERENCE: [Ley, norma o control afectado (ej: OWASP A03:2021 Injection, COBIT APO13, COBIT DSS05, ISO/IEC 27001:2022 A.9.2, ISO/IEC 27001:2022 A.10.1, Ley N 29733 Art.17/Art.19, Normativa institucional Hass Peru)]
 ---END---
 
 Si NO encuentras problemas significativos, responde:
@@ -120,6 +121,14 @@ IMPORTANTE:
 - Da recomendaciones accionables
 - Enfócate en lo MÁS crítico primero
 - En CONTEXT_EXPLANATION y EXPLOIT_EXAMPLE, usa lenguaje claro (no pongas solo SQL ni listas de líneas)
+- En cada hallazgo incluye NORMATIVE_REFERENCE con la normativa o control mas aplicable
+
+MARCO NORMATIVO / REFERENCIAL PARA MAPEAR HALLAZGOS:
+- OWASP Top 10 (2021): A03:2021 Injection
+- COBIT: APO13 (Gestion de la Seguridad de la Informacion), DSS04.08 (Continuidad: backup y recuperacion), DSS05 (Gestion de los Servicios de Seguridad)
+- ISO/IEC 27001:2022: A.6.1.2, A.9.1/A.9.2/A.9.4, A.10.1, A.12.1/A.12.3/A.12.4, A.14.2.1, A.18
+- Ley N 29733 (Peru) - Proteccion de Datos Personales: Art.17 (Medidas de seguridad), Art.19 (Confidencialidad)
+- Normativa institucional Hass Peru: acceso restringido a personal TI autorizado, no compartir credenciales, contrasenas con hash + salt, minimo privilegio con revision periodica, logs de auditoria, backups periodicos y recuperacion
 """
         
         return base_prompt
@@ -240,6 +249,8 @@ IMPORTANTE:
                     finding['code_snippet'] = value
                 elif key == 'exploit_example':
                     finding['exploit_example'] = value
+                elif key == 'normative_reference':
+                    finding['normative_reference'] = value
             
             # Validar que tenga campos mínimos
             required = ['severity', 'category', 'title']

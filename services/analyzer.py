@@ -261,6 +261,7 @@ class AnalyzerService:
                 "detected_by": "regex",
                     "evidence": extract_code_context(sp_code, finding.get("line", 0)),
                 "exploit_example": "",
+                "normative_reference": "",
                 "records_preview": records_preview,
                 "records_source": records_source,
                 "evidence_data": evidence_data
@@ -301,6 +302,7 @@ class AnalyzerService:
                 "detected_by": "gemini_ai",
                     "evidence": extract_code_context(sp_code, finding.get("line", 0)),
                     "exploit_example": finding.get("exploit_example", ""),
+                    "normative_reference": finding.get("normative_reference", ""),
                 "records_preview": records_preview,
                 "records_source": records_source,
                 "evidence_data": evidence_data

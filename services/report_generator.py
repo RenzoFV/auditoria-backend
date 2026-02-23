@@ -165,7 +165,8 @@ class ReportGeneratorService:
                 "impact": finding["impact"],
                 "cwe_id": finding.get("cwe_id"),
                 "cvss_score": finding.get("cvss_score"),
-                "detected_by": finding["detected_by"]
+                "detected_by": finding["detected_by"],
+                "normative_reference": finding.get("normative_reference")
             }
             
             if include_code:
@@ -310,6 +311,12 @@ class ReportGeneratorService:
                         styles['Normal']
                     ))
                 
+                if finding.get("normative_reference"):
+                    story.append(Paragraph(
+                        f"<b>Normativa afectada:</b> {finding.get('normative_reference')}",
+                        styles['Normal']
+                    ))
+
                 story.append(Spacer(1, 0.2*inch))
         
         story.append(PageBreak())
@@ -329,6 +336,12 @@ class ReportGeneratorService:
                 styles['Normal']
             ))
             story.append(Paragraph(f"{finding['description']}", styles['Normal']))
+            if finding.get("normative_reference"):
+                story.append(Paragraph(
+                    f"<b>Normativa afectada:</b> {finding.get('normative_reference')}",
+                    styles['Normal']
+                ))
+
             
             if include_code and finding.get('location', {}).get('code_snippet'):
                 story.append(Paragraph(
@@ -412,8 +425,8 @@ class ReportGeneratorService:
             if f.get("severity") == "critical"
         ]
         
-        ws_critical.append(["SP", "Título", "Línea", "Descripción", "Recomendación"])
-        self._format_excel_header(ws_critical, 'A1:E1')
+        ws_critical.append(["SP", "Titulo", "Linea", "Descripcion", "Normativa afectada", "Recomendacion"])
+        self._format_excel_header(ws_critical, 'A1:F1')
         
         for finding in critical_findings:
             ws_critical.append([
@@ -421,13 +434,14 @@ class ReportGeneratorService:
                 finding['title'],
                 finding['location']['line'],
                 finding['description'],
+                finding.get('normative_reference', ''),
                 finding.get('recommendation', '') if include_recommendations else ''
             ])
         
         # ===== HOJA 3: TODOS LOS HALLAZGOS =====
         ws_all = wb.create_sheet("Todos los Hallazgos")
         
-        headers = ["ID", "SP", "Severidad", "Categoría", "Título", "Línea", "Descripción"]
+        headers = ["ID", "SP", "Severidad", "Categoria", "Titulo", "Linea", "Descripcion", "Normativa afectada"]
         if include_recommendations:
             headers.append("Recomendación")
         
@@ -442,7 +456,8 @@ class ReportGeneratorService:
                 finding['category'],
                 finding['title'],
                 finding['location']['line'],
-                finding['description']
+                finding['description'],
+                finding.get('normative_reference', '')
             ]
             
             if include_recommendations:

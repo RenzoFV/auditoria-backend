@@ -174,6 +174,7 @@ class Finding(BaseModel):
     detected_by: str
     evidence: Optional[str] = None
     exploit_example: Optional[str] = None
+    normative_reference: Optional[str] = None
 
 
 class FindingsSummary(BaseModel):
