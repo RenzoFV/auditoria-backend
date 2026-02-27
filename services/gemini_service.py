@@ -2,6 +2,7 @@
 Servicio de integración con Google Gemini AI
 """
 import google.generativeai as genai
+import re
 from typing import Optional, Dict, Any
 from loguru import logger
 
@@ -117,6 +118,7 @@ Si NO encuentras problemas significativos, responde:
 
 IMPORTANTE:
 - Sé específico con números de línea
+- En LINE escribe SOLO un número entero (sin texto, sin rangos, sin símbolos)
 - Prioriza severidad según riesgo real
 - Da recomendaciones accionables
 - Enfócate en lo MÁS crítico primero
@@ -221,7 +223,7 @@ MARCO NORMATIVO / REFERENCIAL PARA MAPEAR HALLAZGOS:
                     continue
                 
                 key, value = line.split(':', 1)
-                key = key.strip().lower()
+                key = self._normalize_finding_key(key)
                 value = value.strip()
                 
                 if key == 'severity':
@@ -232,11 +234,8 @@ MARCO NORMATIVO / REFERENCIAL PARA MAPEAR HALLAZGOS:
                     finding['type'] = value
                 elif key == 'title':
                     finding['title'] = value
-                elif key == 'line':
-                    try:
-                        finding['line'] = int(value)
-                    except:
-                        finding['line'] = 0
+                elif key in ('line', 'linea', 'línea'):
+                    finding['line'] = self._parse_line_number(value)
                 elif key == 'description':
                     finding['description'] = value
                 elif key == 'context_explanation':
@@ -262,6 +261,30 @@ MARCO NORMATIVO / REFERENCIAL PARA MAPEAR HALLAZGOS:
         except Exception as e:
             logger.warning(f"⚠️ Error parseando hallazgo: {e}")
             return None
+
+    def _normalize_finding_key(self, key: str) -> str:
+        """Normalizar claves del bloque FINDING para parseo tolerante"""
+        cleaned = key.strip().lower()
+        cleaned = re.sub(r"[*`_\-]+", "", cleaned)
+        return cleaned
+
+    def _parse_line_number(self, value: str) -> int:
+        """
+        Parsear número de línea desde distintos formatos de texto.
+        Ejemplos válidos: "236", "236 aprox", "236-240", "línea 236"
+        """
+        if not value:
+            return 0
+
+        match = re.search(r"\d+", value)
+        if not match:
+            return 0
+
+        try:
+            line_number = int(match.group(0))
+            return line_number if line_number > 0 else 0
+        except (TypeError, ValueError):
+            return 0
     
     def quick_security_check(self, sp_code: str) -> Dict[str, bool]:
         """

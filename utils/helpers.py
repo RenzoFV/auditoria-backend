@@ -164,6 +164,9 @@ def extract_code_context(code: str, line_number: int, context_lines: int = 3) ->
     Returns:
         Fragmento de código con contexto
     """
+    if not code or line_number <= 0:
+        return ""
+
     lines = code.split('\n')
     start = max(0, line_number - context_lines - 1)
     end = min(len(lines), line_number + context_lines)

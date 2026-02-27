@@ -226,6 +226,11 @@ class AnalyzerService:
         
         # Procesar hallazgos de regex
         for finding in regex_findings:
+            resolved_line = self._resolve_line_number(
+                finding.get("line", 0),
+                finding.get("code_snippet", ""),
+                sp_code
+            )
             evidence_data, records_preview, records_source = self._build_evidence_data(
                 connection_id=connection_id,
                 sp_code=sp_code,
@@ -246,7 +251,7 @@ class AnalyzerService:
                     "description", finding.get("title", "")
                 ),
                 "location": {
-                    "line": finding.get("line", 0),
+                    "line": resolved_line,
                     "code_snippet": finding.get("code_snippet", "")
                 },
                 "impact": get_impact_description(
@@ -259,7 +264,10 @@ class AnalyzerService:
                 "cwe_id": finding.get("cwe_id"),
                 "cvss_score": finding.get("cvss_score"),
                 "detected_by": "regex",
-                    "evidence": extract_code_context(sp_code, finding.get("line", 0)),
+                "evidence": (
+                    extract_code_context(sp_code, resolved_line)
+                    if resolved_line > 0 else finding.get("code_snippet", "")
+                ),
                 "exploit_example": "",
                 "normative_reference": "",
                 "records_preview": records_preview,
@@ -272,6 +280,11 @@ class AnalyzerService:
         for finding in ai_findings:
             if finding.get("category", "").lower() != "security":
                 continue
+            resolved_line = self._resolve_line_number(
+                finding.get("line", 0),
+                finding.get("code_snippet", ""),
+                sp_code
+            )
             evidence_data, records_preview, records_source = self._build_evidence_data(
                 connection_id=connection_id,
                 sp_code=sp_code,
@@ -292,7 +305,7 @@ class AnalyzerService:
                     "context_explanation", finding.get("description", "")
                 ),
                 "location": {
-                    "line": finding.get("line", 0),
+                    "line": resolved_line,
                     "code_snippet": finding.get("code_snippet", "")
                 },
                 "impact": finding.get("impact", "Impacto pendiente de evaluación"),
@@ -300,9 +313,12 @@ class AnalyzerService:
                 "cwe_id": None,
                 "cvss_score": None,
                 "detected_by": "gemini_ai",
-                    "evidence": extract_code_context(sp_code, finding.get("line", 0)),
-                    "exploit_example": finding.get("exploit_example", ""),
-                    "normative_reference": finding.get("normative_reference", ""),
+                "evidence": (
+                    extract_code_context(sp_code, resolved_line)
+                    if resolved_line > 0 else finding.get("code_snippet", "")
+                ),
+                "exploit_example": finding.get("exploit_example", ""),
+                "normative_reference": finding.get("normative_reference", ""),
                 "records_preview": records_preview,
                 "records_source": records_source,
                 "evidence_data": evidence_data
@@ -310,6 +326,57 @@ class AnalyzerService:
             finding_counter += 1
         
         return merged
+
+    def _resolve_line_number(self, raw_line: Any, code_snippet: str, sp_code: str) -> int:
+        """
+        Resolver línea válida:
+        1) Usa la línea recibida si es > 0
+        2) Si no existe, intenta inferirla buscando el code_snippet en el SP
+        """
+        try:
+            line_number = int(raw_line)
+            if line_number > 0:
+                return line_number
+        except (TypeError, ValueError):
+            pass
+
+        return self._infer_line_from_snippet(sp_code, code_snippet)
+
+    def _infer_line_from_snippet(self, sp_code: str, code_snippet: str) -> int:
+        """Inferir línea por coincidencia de snippet dentro del código del SP."""
+        if not sp_code or not code_snippet:
+            return 0
+
+        sp_lines = sp_code.split("\n")
+        snippet_lines = [line.strip() for line in code_snippet.split("\n") if line.strip()]
+        if not snippet_lines:
+            return 0
+
+        def normalize(text: str) -> str:
+            return re.sub(r"\s+", " ", text.strip()).lower()
+
+        # Intento rápido con la primera línea del snippet.
+        first_target = normalize(snippet_lines[0])
+        if first_target:
+            for idx, source_line in enumerate(sp_lines, start=1):
+                normalized_source = normalize(source_line)
+                if (
+                    first_target == normalized_source
+                    or first_target in normalized_source
+                    or normalized_source in first_target
+                ):
+                    return idx
+
+        # Si el snippet tiene varias líneas, probar ventana.
+        if len(snippet_lines) > 1:
+            target_block = normalize("\n".join(snippet_lines))
+            window_size = len(snippet_lines)
+            for idx in range(0, len(sp_lines) - window_size + 1):
+                source_block = normalize("\n".join(sp_lines[idx:idx + window_size]))
+                if target_block == source_block or target_block in source_block:
+                    return idx + 1
+
+        return 0
 
     def build_evidence_for_finding(
         self,
