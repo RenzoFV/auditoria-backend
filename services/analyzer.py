@@ -14,6 +14,7 @@ from utils.helpers import (
     extract_code_context,
     get_recommendation_for_finding,
     get_impact_description,
+    get_impact_terms,
     calculate_risk_score
 )
 from models.audit import (
@@ -226,6 +227,19 @@ class AnalyzerService:
         
         # Procesar hallazgos de regex
         for finding in regex_findings:
+            # Asignar normativa por defecto si viene vacía
+            def get_default_normative(finding):
+                tipo = (finding.get("type") or "").lower()
+                if "injection" in tipo:
+                    return "OWASP A03:2021 Injection, ISO/IEC 27001:2022 A.9.2"
+                if "data_exposure" in tipo or "personal" in tipo or "sensitive" in tipo:
+                    return "Ley N 29733 Art.17/Art.19, ISO/IEC 27001:2022 A.10.1"
+                if "auth" in tipo or "password" in tipo:
+                    return "COBIT APO13, ISO/IEC 27001:2022 A.9.2"
+                if "logging" in tipo or "audit" in tipo:
+                    return "COBIT DSS05, Normativa institucional Hass Peru"
+                return "Normativa institucional Hass Peru"
+
             resolved_line = self._resolve_line_number(
                 finding.get("line", 0),
                 finding.get("code_snippet", ""),
@@ -256,7 +270,8 @@ class AnalyzerService:
                 },
                 "impact": get_impact_description(
                     finding.get("severity", SeverityLevel.MEDIUM).value,
-                    finding.get("category", CategoryType.SECURITY).value
+                    finding.get("category", CategoryType.SECURITY).value,
+                    finding.get("type", "")
                 ),
                 "recommendation": get_recommendation_for_finding(
                     finding.get("type", "unknown")
@@ -269,7 +284,14 @@ class AnalyzerService:
                     if resolved_line > 0 else finding.get("code_snippet", "")
                 ),
                 "exploit_example": "",
-                "normative_reference": "",
+                "normative_reference": finding.get("normative_reference") or get_default_normative(finding),
+                "impact_terms": get_impact_terms(
+                    get_impact_description(
+                        finding.get("severity", SeverityLevel.MEDIUM).value,
+                        finding.get("category", CategoryType.SECURITY).value,
+                        finding.get("type", "")
+                    )
+                ),
                 "records_preview": records_preview,
                 "records_source": records_source,
                 "evidence_data": evidence_data
@@ -318,7 +340,8 @@ class AnalyzerService:
                     if resolved_line > 0 else finding.get("code_snippet", "")
                 ),
                 "exploit_example": finding.get("exploit_example", ""),
-                "normative_reference": finding.get("normative_reference", ""),
+                "normative_reference": finding.get("normative_reference") or get_default_normative(finding),
+                "impact_terms": get_impact_terms(finding.get("impact", "")),
                 "records_preview": records_preview,
                 "records_source": records_source,
                 "evidence_data": evidence_data
@@ -522,8 +545,20 @@ class AnalyzerService:
         
         # Usar la primera tabla como objetivo
         table = context["tables"][0]
-        schema, table_name = self._split_table_name(table)
-        full_table = f"[{schema}].[{table_name}]" if schema and table_name else None
+        db_info = sql_service.get_database_info(connection_id)
+        current_db = db_info["name"]
+        parts = table.split('.')
+        if len(parts) == 3:
+            db, schema, table_name = parts
+            if not schema or schema.strip() == '':
+                schema = 'dbo'
+            full_table = f"[{db}].[{schema}].[{table_name}]"
+        elif len(parts) == 2:
+            schema, table_name = parts
+            schema = schema or 'dbo'
+            full_table = f"[{current_db}].[{schema}].[{table_name}]"
+        else:
+            full_table = f"[{current_db}].[dbo].[{table}]"
         
         if not full_table or not self._is_safe_table_name(full_table):
             return self._build_generic_evidence(connection_id, context, sp_code, code_snippet, "sql_injection", limit)
@@ -719,9 +754,21 @@ class AnalyzerService:
         if not context["tables"] or not selected_columns:
             return self._build_generic_evidence(connection_id, context, sp_code, "", "sensitive_data_exposure", limit)
         
+
         table = context["tables"][0]
-        schema, table_name = self._split_table_name(table)
-        full_table = f"[{schema}].[{table_name}]" if schema and table_name else None
+        # Permitir nombre completamente calificado: base.esquema.tabla
+        parts = table.split('.')
+        if len(parts) == 3:
+            db, schema, table_name = parts
+            if not schema or schema.strip() == '':
+                schema = 'dbo'
+            full_table = f"[{db}].[{schema}].[{table_name}]"
+        elif len(parts) == 2:
+            schema, table_name = parts
+            schema = schema or 'dbo'
+            full_table = f"[{schema}].[{table_name}]"
+        else:
+            full_table = f"[dbo].[{table}]"
         
         if not full_table or not self._is_safe_table_name(full_table):
             return self._build_generic_evidence(connection_id, context, sp_code, "", "sensitive_data_exposure", limit)
@@ -757,14 +804,14 @@ class AnalyzerService:
                         "non_null": result.get("non_null", 0)
                     }
         
-        # Muestra
-        sample_query = self._build_masked_sample_query(full_table, exposed_sensitive[:5], limit)
+        # Muestra simplificada: SELECT * LIMIT
+        sample_query = f"SELECT TOP {limit} * FROM {full_table}"
         rows = []
-        if sample_query:
-            try:
-                rows = sql_service.fetch_records(connection_id, sample_query, max_rows=limit)
-            except:
-                pass
+        try:
+            rows = sql_service.fetch_records(connection_id, sample_query, max_rows=limit)
+        except Exception as e:
+            from loguru import logger
+            logger.warning(f"Error al hacer SELECT * para muestra: {e}")
         
         attack_scenario = (
             f"El SP expone sin restricciones las columnas sensibles: {', '.join(exposed_sensitive[:5])} "

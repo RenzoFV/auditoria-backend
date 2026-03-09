@@ -22,6 +22,7 @@ class AnalysisType(str, Enum):
     """Tipos de análisis"""
     FULL = "full"
     QUICK = "quick"
+    DEEP = "deep"
 
 
 class SeverityLevel(str, Enum):
@@ -175,6 +176,13 @@ class Finding(BaseModel):
     evidence: Optional[str] = None
     exploit_example: Optional[str] = None
     normative_reference: Optional[str] = None
+    impact_terms: Optional[List[Dict[str, Any]]] = Field(
+        None,
+        description=(
+            "Definiciones y ejemplos concretos de los términos técnicos detectados "
+            "en el campo 'impact', para facilitar la comprensión a audiencias no técnicas."
+        ),
+    )
 
 
 class FindingsSummary(BaseModel):

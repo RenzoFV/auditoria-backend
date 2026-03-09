@@ -304,6 +304,7 @@ class SQLServerService:
         max_rows: int = 10
     ) -> List[Dict[str, Any]]:
         """Ejecutar consulta SELECT y retornar hasta max_rows filas"""
+        from loguru import logger
         conn = self.sql_connection.get_connection(connection_id)
         if not conn:
             raise ValueError("Conexión no encontrada")
@@ -313,6 +314,7 @@ class SQLServerService:
 
         cursor = conn.cursor()
         try:
+            logger.info(f"[SELECT DEBUG] Ejecutando query: {query}")
             cursor.execute(query)
             columns = [col[0] for col in cursor.description] if cursor.description else []
             rows = cursor.fetchmany(max_rows)
@@ -323,6 +325,7 @@ class SQLServerService:
                     columns[i]: row[i]
                     for i in range(len(columns))
                 })
+            logger.info(f"[SELECT DEBUG] Registros obtenidos: {results}")
             return results
         finally:
             cursor.close()
